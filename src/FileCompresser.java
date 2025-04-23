@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -60,9 +61,38 @@ public class FileCompresser {
              * Testing
              */
             System.out.println("Code of " + x.ch + " is " + s);
+            System.out.println("Lenght of code: "+st[x.ch].length());
         }
     }
 
+
+    private static void writeCodeTable(OutputBitStream output, String[] st) throws IOException {
+        int cnt=0;
+        for(int i=0;i<st.length;i++) {
+            if(st[i]!=null) {
+                cnt++;
+            }
+        }
+        //write the number of entries in the table
+        output.writeInt(cnt);
+
+        for(int i=0;i<st.length;i++) {
+            if(st[i]!=null) {
+                output.writeByte((byte)i);//write the symbol
+
+                /**
+                 * Testing
+                 */
+                System.out.println("Leengthhhhh "+st[i].length());
+
+                output.writeInt(st[i].length());//write lenght of code
+                for(char bit:st[i].toCharArray()) {//write each bit of code
+                    output.writeBit(bit=='1');
+                }
+            }
+
+        }
+    }
 
     public static int[] computeFrequencies(byte[] input){
         int[] freq = new int[R];
@@ -90,6 +120,22 @@ public class FileCompresser {
         String[] st = new String[R];
         buildCodeTable(st, root, "");
 
+       try{
+           OutputBitStream output=new OutputBitStream(new FileOutputStream(outputFile));
+           writeCodeTable(output,st);
+           output.writeInt(input.length);
+           for(byte b : input){
+               String bits=st[b & 0xff];
+               for(char c : bits.toCharArray()){
+                   output.writeBit(c=='1');
+               }
+           }
+
+           output.close();
+       }
+       catch(IOException e){
+           e.printStackTrace();
+       }
 
     }
 
