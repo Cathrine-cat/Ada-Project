@@ -1,8 +1,8 @@
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.PriorityQueue;
 
 public class FileCompresser {
@@ -56,12 +56,6 @@ public class FileCompresser {
             buildCodeTable(st, x.right, s + '1');
         } else {
             st[x.ch] = s;
-
-            /**
-             * Testing
-             */
-            System.out.println("Code of " + x.ch + " is " + s);
-            System.out.println("Lenght of code: "+st[x.ch].length());
         }
     }
 
@@ -79,12 +73,6 @@ public class FileCompresser {
         for(int i=0;i<st.length;i++) {
             if(st[i]!=null) {
                 output.writeByte((byte)i);//write the symbol
-
-                /**
-                 * Testing
-                 */
-                System.out.println("Leengthhhhh "+st[i].length());
-
                 output.writeInt(st[i].length());//write lenght of code
                 for(char bit:st[i].toCharArray()) {//write each bit of code
                     output.writeBit(bit=='1');
@@ -105,14 +93,6 @@ public class FileCompresser {
     public static void compress(String inputFile,String outputFile) throws IOException {
         byte input[]= Files.readAllBytes(new File(inputFile).toPath());
         int freq[]=computeFrequencies(input);
-
-
-        /**
-         * Testing
-         */
-        for (int i = 0; i < R; i++)
-            if (freq[i] > 0)
-                System.out.println("freq " + (char) i + " (" + (byte) i + ") " + freq[i]);
 
         HufmanNode root = buildHufmanTree(freq);
 
@@ -139,8 +119,50 @@ public class FileCompresser {
 
     }
 
-    public static void decompress(String inputFile,String outputFile) throws IOException {
+    private static Map <String, Byte> readCodeTable(InputBitStream input) throws IOException{
+        int cnt=input.readInt();//no of different characters
+        Map<String, Byte>code=new HashMap<>();
 
+        for(int i=0;i<cnt;i++){
+            byte ch= (byte) input.readByte();//character
+            int len=input.readInt();//no of bits in code
+
+            StringBuffer sb=new StringBuffer(len);
+            for(int j=0;j<len;j++){
+                boolean bit=input.readBit();
+                sb.append(bit? '1':'0');
+            }
+            code.put(sb.toString(),ch);
+        }
+        return code;
+    }
+
+    public static void decompress(String inputFile,String outputFile) throws IOException {
+        try{
+            InputBitStream input=new InputBitStream(new FileInputStream(inputFile));
+            FileOutputStream output=new FileOutputStream(outputFile);
+
+            Map <String, Byte> code=readCodeTable(input);
+            int dataLen=input.readInt();
+            int bytesWritten=0;
+
+            StringBuffer sb=new StringBuffer();
+            while(bytesWritten<dataLen){
+                while(true) {
+                    sb.append(input.readBit() ? '1' : '0');
+                    if (code.containsKey(sb.toString())) {
+                        output.write(code.get(sb.toString()));
+                        bytesWritten++;
+                        sb.setLength(0);
+                        break;
+                    }
+                }
+            }
+            output.close();
+
+        } catch (IOException e){
+            e.printStackTrace();
+        }
     }
 
 
@@ -157,9 +179,11 @@ public class FileCompresser {
         try{
             if(mode.equals("-c")){
                 compress(inputFile,outputFile);
+                System.out.println("Compression successful");
             }
             else if(mode.equals("-d")){
                 decompress(inputFile,outputFile);
+                System.out.println("Decompression successful");
             }
             else System.out.println("Error. Unrecognized mode. -c -> compression; -d -> decompression");
         }
