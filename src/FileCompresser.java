@@ -31,6 +31,7 @@ public class FileCompresser {
     }
 
 
+
     private static HufmanNode buildHufmanTree(int[] freq) {
 
         PriorityQueue<HufmanNode> pq = new PriorityQueue<>();
@@ -54,8 +55,14 @@ public class FileCompresser {
             buildCodeTable(st, x.right, s + '1');
         } else {
             st[x.ch] = s;
+
+            /**
+             * Testing
+             */
+            System.out.println("Code of " + x.ch + " is " + s);
         }
     }
+
 
     public static int[] computeFrequencies(byte[] input){
         int[] freq = new int[R];
@@ -69,9 +76,21 @@ public class FileCompresser {
         byte input[]= Files.readAllBytes(new File(inputFile).toPath());
         int freq[]=computeFrequencies(input);
 
+
+        /**
+         * Testing
+         */
         for (int i = 0; i < R; i++)
             if (freq[i] > 0)
                 System.out.println("freq " + (char) i + " (" + (byte) i + ") " + freq[i]);
+
+        HufmanNode root = buildHufmanTree(freq);
+
+        // build code table
+        String[] st = new String[R];
+        buildCodeTable(st, root, "");
+
+
     }
 
     public static void decompress(String inputFile,String outputFile) throws IOException {
