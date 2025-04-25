@@ -1,13 +1,13 @@
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
 
 public class FileCompresser {
 
-    private static int R = 256;
+    private static final int R = 256;//size of alphabet
+    private static final int CODE=0x48554646;//code used to identify files compressed by program
 
     private static class HufmanNode implements Comparable<HufmanNode> {
         char ch;
@@ -62,11 +62,12 @@ public class FileCompresser {
 
     private static void writeCodeTable(OutputBitStream output, String[] st) throws IOException {
         int cnt=0;
-        for(int i=0;i<st.length;i++) {
-            if(st[i]!=null) {
+        for (String s : st) {
+            if (s != null) {
                 cnt++;
             }
         }
+
         //write the number of entries in the table
         output.writeInt(cnt);
 
@@ -90,9 +91,16 @@ public class FileCompresser {
         return freq;
     }
 
-    public static void compress(String inputFile,String outputFile) throws IOException {
-        byte input[]= Files.readAllBytes(new File(inputFile).toPath());
-        int freq[]=computeFrequencies(input);
+    public static int compress(String inputFile,String outputFile)  {
+
+        byte[] input;
+        try {
+            input = Files.readAllBytes(new File(inputFile).toPath());
+        }catch (IOException e){
+            System.out.println("Error reading file");
+            return 0;
+        }
+        int[] freq = computeFrequencies(input);
 
         HufmanNode root = buildHufmanTree(freq);
 
@@ -100,26 +108,29 @@ public class FileCompresser {
         String[] st = new String[R];
         buildCodeTable(st, root, "");
 
-       try{
-           OutputBitStream output=new OutputBitStream(new FileOutputStream(outputFile));
-           writeCodeTable(output,st);
-           output.writeInt(input.length);
-           for(byte b : input){
-               String bits=st[b & 0xff];
-               for(char c : bits.toCharArray()){
-                   output.writeBit(c=='1');
-               }
-           }
+        /**
+         * Form of compressed file:
+         * Code:int, Code table, Lenght of input:int, Compressed code*/
 
-           output.close();
-       }
-       catch(IOException e){
-           e.printStackTrace();
-       }
+        try (OutputBitStream output = new OutputBitStream(new FileOutputStream(outputFile))) {
+            output.writeInt(CODE);//code that shows that file is compressed and can be decompreseed by this algorithm
+            writeCodeTable(output, st);
+            output.writeInt(input.length);
+            for (byte b : input) {
+                String bits = st[b & 0xff];
+                for (char c : bits.toCharArray()) {
+                    output.writeBit(c == '1');
+                }
+            }
+        } catch(IOException e){
+            System.out.println("Error while to writing file");
+            return 0;
+        }
 
+        return 1;
     }
 
-    private static Map <String, Byte> readCodeTable(InputBitStream input) throws IOException{
+    private static Map <String, Byte> readCodeTable(InputBitStream input) throws IOException {
         int cnt=input.readInt();//no of different characters
         Map<String, Byte>code=new HashMap<>();
 
@@ -127,7 +138,7 @@ public class FileCompresser {
             byte ch= (byte) input.readByte();//character
             int len=input.readInt();//no of bits in code
 
-            StringBuffer sb=new StringBuffer(len);
+            StringBuilder sb=new StringBuilder(len);
             for(int j=0;j<len;j++){
                 boolean bit=input.readBit();
                 sb.append(bit? '1':'0');
@@ -137,32 +148,48 @@ public class FileCompresser {
         return code;
     }
 
-    public static void decompress(String inputFile,String outputFile) throws IOException {
-        try{
-            InputBitStream input=new InputBitStream(new FileInputStream(inputFile));
-            FileOutputStream output=new FileOutputStream(outputFile);
+    public static int decompress(String inputFile,String outputFile) {
+        try(InputBitStream input=new InputBitStream(new FileInputStream(inputFile))){
+            int readcode=input.readInt();
+            if(readcode!=CODE){//file was not compressed by this algorithm
+                System.out.println("Invalid file format. Cannot be decompressed.");
+                return 0;
+            }
 
             Map <String, Byte> code=readCodeTable(input);
             int dataLen=input.readInt();
             int bytesWritten=0;
 
-            StringBuffer sb=new StringBuffer();
-            while(bytesWritten<dataLen){
-                while(true) {
-                    sb.append(input.readBit() ? '1' : '0');
-                    if (code.containsKey(sb.toString())) {
-                        output.write(code.get(sb.toString()));
-                        bytesWritten++;
-                        sb.setLength(0);
-                        break;
+            try(FileOutputStream output=new FileOutputStream(outputFile)) {
+
+                StringBuilder sb = new StringBuilder();
+                while (bytesWritten < dataLen) {
+                    while (true) {
+                        sb.append(input.readBit() ? '1' : '0');
+                        if (code.containsKey(sb.toString())) {
+                            output.write(code.get(sb.toString()));
+                            bytesWritten++;
+                            sb.setLength(0);
+                            break;
+                        }
                     }
                 }
+            }catch(FileNotFoundException e) {
+                System.out.println("Error opening output file");
+                return 0;
+            }catch(IOException e){
+                System.out.println("Error while writing output file");
+                return 0;
             }
-            output.close();
-
-        } catch (IOException e){
-            e.printStackTrace();
+        }catch (FileNotFoundException e) {
+            System.out.println("Error opening input file");
+            return 0;
+        }catch (IOException e){
+            System.out.println("Error while reading input file");
+            return 0;
         }
+
+        return 1;
     }
 
 
@@ -176,19 +203,17 @@ public class FileCompresser {
         String inputFile = args[1];
         String outputFile = args[2];
 
-        try{
-            if(mode.equals("-c")){
-                compress(inputFile,outputFile);
+        if(mode.equals("-c")){
+            if(compress(inputFile,outputFile)==1){
                 System.out.println("Compression successful");
             }
-            else if(mode.equals("-d")){
-                decompress(inputFile,outputFile);
+            else System.out.println("Compression failed");
+        }
+        else if(mode.equals("-d")){
+            if(decompress(inputFile,outputFile)==1){
                 System.out.println("Decompression successful");
             }
-            else System.out.println("Error. Unrecognized mode. -c -> compression; -d -> decompression");
-        }
-        catch (IOException e){
-            e.printStackTrace();
-        }
+            else System.out.println("Decompression failed");
+        } else System.out.println("Error. Unrecognized mode. -c -> compression; -d -> decompression");
     }
 }

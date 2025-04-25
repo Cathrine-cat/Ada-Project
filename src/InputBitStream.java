@@ -1,8 +1,9 @@
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class InputBitStream implements Cloneable{
+public class InputBitStream implements Closeable {
     private final InputStream input;
     private int currByte;
     private int numBitsRemaining;

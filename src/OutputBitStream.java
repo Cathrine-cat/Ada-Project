@@ -1,7 +1,8 @@
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class OutputBitStream implements Cloneable{
+public class OutputBitStream implements Closeable {
     private final OutputStream output;
     private int currByte;
     private int numBitsFiled;
